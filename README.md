@@ -1,10 +1,12 @@
 # Verilog_YOLO
 Verilog of YOLO's basic functions
 
-## RTL modules (SystemVerilog)
-- `rtl/fcn_matrix_mult.sv`: Fully-connected (matrix multiplication) block with bias.
-- `rtl/conv2d.sv`: Convolution block that computes one output pixel for each output channel.
-- `rtl/max_pool2d.sv`: KxK max-pooling over a flattened window.
-- `rtl/activation_relu.sv`: ReLU activation (max(0, x)).
+## Folder layout
+- `function/`: core modules (.v) and per-module timing README files.
+- `testbench/`: testbenches for each module.
 
-All modules are parameterizable for bit widths and sizes, and use SystemVerilog array ports for clarity.
+## Modules
+- `function/fcn_matrix_mult.v`: Fully-connected (matrix multiplication) block with bias.
+- `function/conv2d.v`: Convolution block that computes one output pixel per output channel.
+- `function/max_pool2d.v`: KxK max-pooling over a flattened window.
+- `function/activation_relu.v`: ReLU activation (max(0, x)).
