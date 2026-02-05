@@ -6,13 +6,9 @@ module activation_relu #(
     parameter integer WIDTH = 16
 ) (
     input  signed [WIDTH-1:0] in_data,
-    output reg signed [WIDTH-1:0] out_data
+    output wire signed [WIDTH-1:0] out_data
 );
-    always @* begin
-        if (in_data < 0) begin
-            out_data = {WIDTH{1'b0}};
-        end else begin
-            out_data = in_data;
-        end
-    end
+    
+    assign out_data = in_data[WIDTH-1] ? {WIDTH{1'b0}} : in_data;
+
 endmodule
