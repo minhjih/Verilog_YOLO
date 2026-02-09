@@ -24,12 +24,10 @@ module pe27_mac (
     reg [4:0]  idx;
     reg [23:0] acc;
 
-    wire [7:0] w_sel;
-    wire [7:0] x_sel;
-
-    reg mul_start;
-    wire [15:0] mul_product;
-    wire mul_done;
+    reg mul_start_all;
+    wire [431:0] mul_products_flat; // 27 * 16-bit
+    wire [26:0]  mul_done_vec;
+    wire         all_mul_done;
 
     reg add_start;
     reg [7:0] add_a;
@@ -40,21 +38,26 @@ module pe27_mac (
 
     reg carry01;
     reg carry12;
-    reg [15:0] product_hold;
+    wire [15:0] product_sel;
 
-    assign w_sel = weights_flat[idx*8 +: 8];
-    assign x_sel = inputs_flat[idx*8 +: 8];
+    genvar gi;
+    generate
+        for (gi = 0; gi < 27; gi = gi + 1) begin : GEN_MUL_ARRAY
+            multiplier8_seq u_mul (
+                .clk(clk),
+                .rst_n(rst_n),
+                .start(mul_start_all),
+                .a(weights_flat[gi*8 +: 8]),
+                .b(inputs_flat[gi*8 +: 8]),
+                .product(mul_products_flat[gi*16 +: 16]),
+                .busy(),
+                .done(mul_done_vec[gi])
+            );
+        end
+    endgenerate
 
-    multiplier8_seq u_mul (
-        .clk(clk),
-        .rst_n(rst_n),
-        .start(mul_start),
-        .a(w_sel),
-        .b(x_sel),
-        .product(mul_product),
-        .busy(),
-        .done(mul_done)
-    );
+    assign all_mul_done = &mul_done_vec;
+    assign product_sel  = mul_products_flat[idx*16 +: 16];
 
     adder8_seq u_add (
         .clk(clk),
@@ -70,23 +73,22 @@ module pe27_mac (
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state        <= ST_IDLE;
-            idx          <= 5'd0;
-            acc          <= 24'd0;
-            mac_out      <= 24'd0;
-            busy         <= 1'b0;
-            done         <= 1'b0;
-            mul_start    <= 1'b0;
-            add_start    <= 1'b0;
-            add_a        <= 8'd0;
-            add_b        <= 8'd0;
-            carry01      <= 1'b0;
-            carry12      <= 1'b0;
-            product_hold <= 16'd0;
+            state         <= ST_IDLE;
+            idx           <= 5'd0;
+            acc           <= 24'd0;
+            mac_out       <= 24'd0;
+            busy          <= 1'b0;
+            done          <= 1'b0;
+            mul_start_all <= 1'b0;
+            add_start     <= 1'b0;
+            add_a         <= 8'd0;
+            add_b         <= 8'd0;
+            carry01       <= 1'b0;
+            carry12       <= 1'b0;
         end else begin
-            done      <= 1'b0;
-            mul_start <= 1'b0;
-            add_start <= 1'b0;
+            done          <= 1'b0;
+            mul_start_all <= 1'b0;
+            add_start     <= 1'b0;
 
             case (state)
                 ST_IDLE: begin
@@ -99,20 +101,20 @@ module pe27_mac (
                 end
 
                 ST_MUL_START: begin
-                    mul_start <= 1'b1;
-                    state     <= ST_MUL_WAIT;
+                    // 27개 multiplier를 동시에 시작
+                    mul_start_all <= 1'b1;
+                    state         <= ST_MUL_WAIT;
                 end
 
                 ST_MUL_WAIT: begin
-                    if (mul_done) begin
-                        product_hold <= mul_product;
-                        state        <= ST_ADD0_START;
+                    if (all_mul_done) begin
+                        state <= ST_ADD0_START;
                     end
                 end
 
                 ST_ADD0_START: begin
                     add_a     <= acc[7:0];
-                    add_b     <= product_hold[7:0];
+                    add_b     <= product_sel[7:0];
                     add_start <= 1'b1;
                     state     <= ST_ADD0_WAIT;
                 end
@@ -127,7 +129,7 @@ module pe27_mac (
 
                 ST_ADD1A_START: begin
                     add_a     <= acc[15:8];
-                    add_b     <= product_hold[15:8];
+                    add_b     <= product_sel[15:8];
                     add_start <= 1'b1;
                     state     <= ST_ADD1A_WAIT;
                 end
@@ -177,7 +179,7 @@ module pe27_mac (
                             state   <= ST_IDLE;
                         end else begin
                             idx   <= idx + 5'd1;
-                            state <= ST_MUL_START;
+                            state <= ST_ADD0_START;
                         end
                     end
                 end

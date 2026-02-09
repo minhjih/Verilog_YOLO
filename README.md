@@ -18,6 +18,6 @@ YOLO function 블록 대신, 하드웨어 아키텍처용 기본 연산 블록�
 
 - `function/pe27_mac.v`
   - 27개의 weight와 27개의 input을 받아 MAC 수행
-  - 각 항은 `wi * xi`를 `multiplier8_seq`로 계산
+  - `wi * xi` 27개를 `multiplier8_seq` 27개로 병렬 계산
   - 누산은 `adder8_seq`만 사용해 24-bit 누적값으로 합산
   - 내부는 FSM + wire 연결 기반으로 구성

@@ -89,6 +89,15 @@ module pe27_mac_tb;
         end
         run_case("first 9 terms", 8'd54);
 
+        // CASE 3: 27개 모두 wi=2, xi=2 -> sum = 27 * 4 = 108
+        weights_flat = 216'd0;
+        inputs_flat  = 216'd0;
+        for (i = 0; i < 27; i = i + 1) begin
+            weights_flat[i*8 +: 8] = 8'd2;
+            inputs_flat[i*8 +: 8]  = 8'd2;
+        end
+        run_case("all twos", 8'd108);
+
         $display("All pe27_mac tests passed.");
         $finish;
     end
