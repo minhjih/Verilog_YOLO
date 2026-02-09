@@ -27,7 +27,6 @@ module pe27_mac (
     reg         mul_start_all;
     wire [431:0] mul_products_flat;
     wire [26:0]  mul_done_vec;
-    wire         all_mul_done;
 
     reg start_a1, start_a2, start_a3, start_a4, start_a5;
 
@@ -43,10 +42,19 @@ module pe27_mac (
     wire [1:0]  done_a4;
     wire        done_a5;
 
-    wire all_done_a1 = &done_a1;
-    wire all_done_a2 = &done_a2;
-    wire all_done_a3 = &done_a3;
-    wire all_done_a4 = &done_a4;
+    // pulse형 done 신호를 latch해서 stage 완료를 안정적으로 감지
+    reg [26:0] mul_done_latched;
+    reg [12:0] a1_done_latched;
+    reg [6:0]  a2_done_latched;
+    reg [2:0]  a3_done_latched;
+    reg [1:0]  a4_done_latched;
+    reg        a5_done_latched;
+
+    wire all_mul_done = &mul_done_latched;
+    wire all_done_a1  = &a1_done_latched;
+    wire all_done_a2  = &a2_done_latched;
+    wire all_done_a3  = &a3_done_latched;
+    wire all_done_a4  = &a4_done_latched;
 
     genvar gi;
     generate
@@ -140,8 +148,6 @@ module pe27_mac (
         );
     endgenerate
 
-    assign all_mul_done = &mul_done_vec;
-
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= ST_IDLE;
@@ -154,6 +160,12 @@ module pe27_mac (
             start_a3 <= 1'b0;
             start_a4 <= 1'b0;
             start_a5 <= 1'b0;
+            mul_done_latched <= 27'd0;
+            a1_done_latched  <= 13'd0;
+            a2_done_latched  <= 7'd0;
+            a3_done_latched  <= 3'd0;
+            a4_done_latched  <= 2'd0;
+            a5_done_latched  <= 1'b0;
         end else begin
             done <= 1'b0;
             mul_start_all <= 1'b0;
@@ -163,36 +175,109 @@ module pe27_mac (
             start_a4 <= 1'b0;
             start_a5 <= 1'b0;
 
+            // done latch 업데이트
+            mul_done_latched <= mul_done_latched | mul_done_vec;
+            a1_done_latched  <= a1_done_latched  | done_a1;
+            a2_done_latched  <= a2_done_latched  | done_a2;
+            a3_done_latched  <= a3_done_latched  | done_a3;
+            a4_done_latched  <= a4_done_latched  | done_a4;
+            a5_done_latched  <= a5_done_latched  | done_a5;
+
             case (state)
                 ST_IDLE: begin
                     if (start) begin
                         busy <= 1'b1;
                         mac_out <= 24'd0;
+                        mul_done_latched <= 27'd0;
+                        a1_done_latched  <= 13'd0;
+                        a2_done_latched  <= 7'd0;
+                        a3_done_latched  <= 3'd0;
+                        a4_done_latched  <= 2'd0;
+                        a5_done_latched  <= 1'b0;
                         state <= ST_MUL_START;
                     end
                 end
+
                 ST_MUL_START: begin
                     mul_start_all <= 1'b1;
+                    mul_done_latched <= 27'd0;
                     state <= ST_MUL_WAIT;
                 end
-                ST_MUL_WAIT: if (all_mul_done) state <= ST_A1_START;
-                ST_A1_START: begin start_a1 <= 1'b1; state <= ST_A1_WAIT; end
-                ST_A1_WAIT: if (all_done_a1) state <= ST_A2_START;
-                ST_A2_START: begin start_a2 <= 1'b1; state <= ST_A2_WAIT; end
-                ST_A2_WAIT: if (all_done_a2) state <= ST_A3_START;
-                ST_A3_START: begin start_a3 <= 1'b1; state <= ST_A3_WAIT; end
-                ST_A3_WAIT: if (all_done_a3) state <= ST_A4_START;
-                ST_A4_START: begin start_a4 <= 1'b1; state <= ST_A4_WAIT; end
-                ST_A4_WAIT: if (all_done_a4) state <= ST_A5_START;
-                ST_A5_START: begin start_a5 <= 1'b1; state <= ST_A5_WAIT; end
+
+                ST_MUL_WAIT: begin
+                    if (all_mul_done) begin
+                        a1_done_latched <= 13'd0;
+                        state <= ST_A1_START;
+                    end
+                end
+
+                ST_A1_START: begin
+                    start_a1 <= 1'b1;
+                    a1_done_latched <= 13'd0;
+                    state <= ST_A1_WAIT;
+                end
+
+                ST_A1_WAIT: begin
+                    if (all_done_a1) begin
+                        a2_done_latched <= 7'd0;
+                        state <= ST_A2_START;
+                    end
+                end
+
+                ST_A2_START: begin
+                    start_a2 <= 1'b1;
+                    a2_done_latched <= 7'd0;
+                    state <= ST_A2_WAIT;
+                end
+
+                ST_A2_WAIT: begin
+                    if (all_done_a2) begin
+                        a3_done_latched <= 3'd0;
+                        state <= ST_A3_START;
+                    end
+                end
+
+                ST_A3_START: begin
+                    start_a3 <= 1'b1;
+                    a3_done_latched <= 3'd0;
+                    state <= ST_A3_WAIT;
+                end
+
+                ST_A3_WAIT: begin
+                    if (all_done_a3) begin
+                        a4_done_latched <= 2'd0;
+                        state <= ST_A4_START;
+                    end
+                end
+
+                ST_A4_START: begin
+                    start_a4 <= 1'b1;
+                    a4_done_latched <= 2'd0;
+                    state <= ST_A4_WAIT;
+                end
+
+                ST_A4_WAIT: begin
+                    if (all_done_a4) begin
+                        a5_done_latched <= 1'b0;
+                        state <= ST_A5_START;
+                    end
+                end
+
+                ST_A5_START: begin
+                    start_a5 <= 1'b1;
+                    a5_done_latched <= 1'b0;
+                    state <= ST_A5_WAIT;
+                end
+
                 ST_A5_WAIT: begin
-                    if (done_a5) begin
+                    if (a5_done_latched) begin
                         mac_out <= {10'd0, s5};
                         busy <= 1'b0;
                         done <= 1'b1;
                         state <= ST_IDLE;
                     end
                 end
+
                 default: state <= ST_IDLE;
             endcase
         end
